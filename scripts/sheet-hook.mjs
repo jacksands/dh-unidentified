@@ -1,28 +1,24 @@
 // ============================================================
 // dh-unidentified | sheet-hook.mjs
-// Intercepts item sheet rendering to mask data in the DOM.
+// Intercepts item sheet rendering:
 //
-// ARCHITECTURE (v2 — non-destructive):
-//   The item's real name/img/description are never changed in DB.
-//   When the sheet renders, we overwrite what is DISPLAYED in the
-//   DOM with the masked values from flags. The underlying document
-//   data remains real at all times.
+// GM view (item unidentified):
+//   - Banner inside .window-content showing masked name
+//   - Action buttons inside that banner (Identify / Re-mystify)
+//   - Banner is NOT in .window-header — avoids the z-index/overflow
+//     clipping issue caused by position:absolute on .window-header
 //
-// GM view (unidentified):
-//   - Sheet shows REAL data (the document is real — nothing to do)
-//   - Teal banner shows both masked name and real name
-//   - ⋮ menu gets Identify + Re-mystify entries
+// GM view (item identified):
+//   - Small "Mystify" button inside the sheet content area
 //
-// GM view (identified / never mystified):
-//   - ⋮ menu gets Mystify entry
-//
-// Player view (unidentified):
-//   - DOM is patched: name, img, description replaced with masked values
-//   - All inputs locked, overlay blocks interaction
-//   - Close (X) button preserved
+// Player view (item unidentified):
+//   - Purple "Unidentified" badge inside .window-content
+//   - All inputs inside .window-content are disabled
+//   - Transparent overlay inside .window-content blocks interaction
+//   - .window-header is NOT touched — close (X) button always works
 // ============================================================
 
-import { isUnidentified, isSupported, openMystifyDialog, identifyItem, getFlags, FLAG } from "./unidentified.mjs";
+import { isUnidentified, isSupported, openMystifyDialog, identifyItem, getFlags } from "./unidentified.mjs";
 
 // ── Main entry point ──────────────────────────────────────────
 
@@ -31,43 +27,43 @@ export function onRenderItemSheet(app, element) {
   if (!(item instanceof Item)) return;
   if (!isSupported(item)) return;
 
+  // app.element = the full application frame (form).
+  // menu.controls-dropdown is the native Foundry/DH dropdown (the three-dots
+  // menu) — it already contains "Configure Sheet" and "Configure Attribution".
+  // We inject our GM entries there so they sit naturally alongside the others,
+  // with no z-index or overflow issues.
   const frame = app.element;
   if (!frame) return;
 
+  // Guard: only act when the frame is fully in the DOM
   const controlsMenu = frame.querySelector("menu.controls-dropdown");
   if (!controlsMenu) return;
 
   const content = frame.querySelector("section.window-content, .window-content");
 
   if (isUnidentified(item)) {
-    if (game.user.isGM) {
-      // GM sees real data — just inject banner + menu entries
-      _applyGMViewUnidentified(app, controlsMenu, content, item);
-    } else {
-      // Player sees masked data — patch the DOM
-      _applyPlayerView(app, frame, content, item);
-    }
+    game.user.isGM ? _applyGMViewUnidentified(app, frame, controlsMenu, content, item)
+                   : _applyPlayerView(app, frame, content);
   } else {
-    // Identified: GM gets Mystify entry in menu
     if (game.user.isGM) _injectGMMystifyEntry(controlsMenu, app, item);
   }
 }
 
-// ── GM View ───────────────────────────────────────────────────
+// ── GM View — item IS unidentified ───────────────────────────
 
-function _applyGMViewUnidentified(app, controlsMenu, content, item) {
-  if (content) _injectGMBanner(content, item);
+function _applyGMViewUnidentified(app, frame, controlsMenu, content, item) {
+  // Banner inside window-content (shows masked name to GM)
+  if (content) _injectGMBanner(app, content, item);
+  // Action entries inside the controls-dropdown menu
   _injectGMMenuEntries(controlsMenu, app, item, { identified: false });
 }
 
-function _injectGMBanner(content, item) {
+function _injectGMBanner(app, content, item) {
   if (content.querySelector(".dhui-gm-banner")) return;
 
   const flags  = getFlags(item);
-  // Real name = item.name (document is untouched)
-  // Masked name = from flags
   const masked = flags.maskedName ?? "?";
-  const real   = item.name;
+  const real   = flags.realName   ?? item.name ?? "?";
 
   const banner = document.createElement("div");
   banner.className = "dhui-gm-banner";
@@ -90,154 +86,39 @@ function _injectGMBanner(content, item) {
   content.insertBefore(banner, content.firstChild);
 }
 
-// ── Player View ───────────────────────────────────────────────
-
-function _applyPlayerView(app, frame, content, item) {
-  if (!content) return;
-
-  const flags = getFlags(item);
-
-  // 1. Patch the DOM to show masked values
-  _maskSheetDOM(frame, content, flags);
-
-  // 2. Show the "Unidentified" badge
-  _injectPlayerBadge(content);
-
-  // 3. Lock all inputs
-  _lockContent(content);
-
-  // 4. Restore close button (safety net)
-  _restoreHeaderButtons(app, frame);
-}
-
-/**
- * Overwrite the visible DOM elements with masked values.
- * The document's real data is untouched — only what is rendered changes.
- */
-function _maskSheetDOM(frame, content, flags) {
-  const maskedName = flags.maskedName ?? "Unidentified Item";
-  const maskedImg  = flags.maskedImg  ?? "icons/svg/item-bag.svg";
-  const maskedDesc = flags.maskedDesc ?? "The nature of this item is unknown.";
-
-  // ── Name: the h1 input in the item sheet header ──
-  // Confirmed from armor/header.hbs: <input type='text' name='name' value='{{source.name}}' />
-  frame.querySelectorAll("input[name='name'], h1.item-name, .item-name input").forEach(el => {
-    if (el.tagName === "INPUT") el.value = maskedName;
-    else el.textContent = maskedName;
-  });
-
-  // ── Window title (shown in browser tab / taskbar) ──
-  const titleEl = frame.querySelector(".window-title");
-  if (titleEl) titleEl.textContent = maskedName;
-
-  // ── Icon: the profile img ──
-  // Confirmed from header.hbs: <img class='profile' src='{{source.img}}' />
-  frame.querySelectorAll("img.profile, .item-sheet-header img.profile").forEach(el => {
-    el.src = maskedImg;
-  });
-
-  // ── Description: the ProseMirror / toggled field ──
-  // tab-description.hbs uses {{formInput systemFields.description ...toggled=true}}
-  // This renders as a div.editor or similar containing the description HTML.
-  // We replace the text content to show the masked description.
-  content.querySelectorAll(
-    ".editor-content, [data-field='system.description'] .editor-content, " +
-    "prose-mirror .editor-content, div[contenteditable]"
-  ).forEach(el => {
-    el.innerHTML = `<p>${_escInner(maskedDesc)}</p>`;
-  });
-
-  // Also hide the armor features section ("Heavy: -1 to Evasion")
-  content.querySelectorAll(".item-description-outer-container, .item-description-container").forEach(el => {
-    el.style.setProperty("display", "none", "important");
-  });
-}
-
-function _injectPlayerBadge(content) {
-  if (content.querySelector(".dhui-player-badge")) return;
-  const badge = document.createElement("div");
-  badge.className = "dhui-player-badge";
-  badge.innerHTML = `<i class="fas fa-question-circle"></i> Unidentified`;
-  content.insertBefore(badge, content.firstChild);
-}
-
-function _lockContent(content) {
-  if (!content) return;
-
-  content.querySelectorAll("input, select, textarea").forEach(el => {
-    el.disabled = true;
-    el.readOnly = true;
-    el.style.setProperty("pointer-events", "none", "important");
-    el.style.setProperty("cursor",          "default", "important");
-  });
-
-  content.querySelectorAll("button").forEach(el => {
-    el.disabled = true;
-    el.style.setProperty("pointer-events", "none", "important");
-    el.style.setProperty("cursor",          "default", "important");
-  });
-
-  content.querySelectorAll("[contenteditable]").forEach(el => {
-    el.setAttribute("contenteditable", "false");
-    el.style.setProperty("pointer-events", "none", "important");
-  });
-
-  // Block tab navigation (Settings / Actions / Effects)
-  content.querySelectorAll(".tabs .tab, [data-action='tab'], nav.tabs a, .tab-navigation a").forEach(el => {
-    el.style.setProperty("pointer-events", "none", "important");
-    el.style.setProperty("cursor", "default", "important");
-  });
-
-  // Overlay to catch anything else
-  if (!content.querySelector(".dhui-lock-overlay")) {
-    content.style.position = "relative";
-    const overlay = document.createElement("div");
-    overlay.className = "dhui-lock-overlay";
-    content.appendChild(overlay);
-  }
-}
-
-function _restoreHeaderButtons(app, frame) {
-  const header = frame.querySelector(".window-header, header");
-  if (!header) return;
-
-  header.querySelectorAll("button, a").forEach(btn => {
-    btn.disabled = false;
-    btn.style.removeProperty("pointer-events");
-    btn.style.removeProperty("cursor");
-  });
-
-  const closeBtn = header.querySelector("[data-action='close'], .window-close");
-  if (closeBtn && !closeBtn.dataset.dhuiRestored) {
-    closeBtn.dataset.dhuiRestored = "1";
-    closeBtn.addEventListener("click", e => { e.stopPropagation(); app.close(); });
-  }
-}
-
-// ── GM controls-dropdown entries ─────────────────────────────
+// ── GM View — item IS identified (just a small Mystify shortcut) ─
 
 function _injectGMMystifyEntry(controlsMenu, app, item) {
   _injectGMMenuEntries(controlsMenu, app, item, { identified: true });
 }
 
+/**
+ * Inject GM entries into menu.controls-dropdown.
+ * The menu already contains li.header-control items ("Configure Sheet", etc).
+ * We append a separator + our entries in the same format.
+ */
 function _injectGMMenuEntries(controlsMenu, app, item, { identified }) {
   if (controlsMenu.querySelector(".dhui-menu-entry")) return;
 
+  // Separator
   const sep = document.createElement("li");
   sep.className = "dhui-menu-sep";
   sep.setAttribute("role", "separator");
   controlsMenu.appendChild(sep);
 
   if (!identified) {
+    // Identify
     controlsMenu.appendChild(_makeMenuEntry(
       "fas fa-eye", "Identify Item",
       async () => { await identifyItem(item); app.render({ force: true }); }
     ));
+    // Re-mystify
     controlsMenu.appendChild(_makeMenuEntry(
       "fas fa-pen-to-square", "Re-mystify",
       async () => { await openMystifyDialog(item); app.render({ force: true }); }
     ));
   } else {
+    // Mystify
     controlsMenu.appendChild(_makeMenuEntry(
       "fas fa-eye-slash", "Mystify Item",
       async () => { await openMystifyDialog(item); app.render({ force: true }); }
@@ -254,7 +135,7 @@ function _makeMenuEntry(iconClass, label, onClick) {
       <span class="control-label">${label}</span>
     </button>
   `;
-  li.querySelector("button").addEventListener("click", e => {
+  li.querySelector("button").addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     onClick();
@@ -262,7 +143,98 @@ function _makeMenuEntry(iconClass, label, onClick) {
   return li;
 }
 
-// ── Utilities ─────────────────────────────────────────────────
+// ── Player View ───────────────────────────────────────────────
+
+function _applyPlayerView(app, frame, content) {
+  _injectPlayerBadge(content);
+  _lockContent(content);
+  // .window-header is outside .window-content — not locked.
+  // Safety net: restore header buttons using the full frame.
+  _restoreHeaderButtons(app, frame);
+}
+
+function _injectPlayerBadge(content) {
+  if (content.querySelector(".dhui-player-badge")) return;
+
+  const badge = document.createElement("div");
+  badge.className = "dhui-player-badge";
+  badge.innerHTML = `<i class="fas fa-question-circle"></i> Unidentified`;
+  content.insertBefore(badge, content.firstChild);
+}
+
+function _lockContent(content) {
+  if (!content) return;
+
+  // Disable all form controls
+  content.querySelectorAll("input, select, textarea").forEach(el => {
+    el.disabled = true;
+    el.readOnly = true;
+    el.style.setProperty("pointer-events", "none", "important");
+    el.style.setProperty("cursor",          "default", "important");
+  });
+
+  // Disable buttons inside content
+  content.querySelectorAll("button").forEach(el => {
+    el.disabled = true;
+    el.style.setProperty("pointer-events", "none", "important");
+    el.style.setProperty("cursor",          "default", "important");
+  });
+
+  // Disable rich-text editors
+  content.querySelectorAll("[contenteditable]").forEach(el => {
+    el.setAttribute("contenteditable", "false");
+    el.style.setProperty("pointer-events", "none", "important");
+  });
+
+  // Remove tab navigation (Description / Settings / Actions / Effects)
+  // Player must not switch tabs and see mechanical stats
+  content.querySelectorAll(".tabs .tab, [data-action='tab'], nav.tabs a, .tab-navigation a").forEach(el => {
+    el.style.setProperty("pointer-events", "none", "important");
+    el.style.setProperty("cursor", "default", "important");
+  });
+
+  // Hide armor/weapon feature descriptions ("Heavy: -1 to Evasion")
+  // Generated by getDescriptionData() and injected before the main description
+  content.querySelectorAll(".item-description-outer-container, .item-description-container").forEach(el => {
+    el.style.setProperty("display", "none", "important");
+  });
+
+  // Transparent click-blocker overlay inside content only
+  if (!content.querySelector(".dhui-lock-overlay")) {
+    content.style.position = "relative";
+    const overlay = document.createElement("div");
+    overlay.className = "dhui-lock-overlay";
+    content.appendChild(overlay);
+  }
+}
+
+/**
+ * Restore any header-area buttons that may have been caught by the lock.
+ * This is a safety net — since we only lock .window-content the header
+ * should already be untouched, but if the system renders close/controls
+ * inside the content area this fixes it.
+ */
+function _restoreHeaderButtons(app, frame) {
+  const header = frame.querySelector(".window-header, header");
+  if (!header) return;
+
+  if (!header) return;
+  header.querySelectorAll("button, a").forEach(btn => {
+    btn.disabled = false;
+    btn.style.removeProperty("pointer-events");
+    btn.style.removeProperty("cursor");
+  });
+
+  // Re-attach close action in case
+  const closeBtn = header.querySelector("[data-action='close'], .window-close");
+  if (closeBtn && !closeBtn.dataset.dhuiRestored) {
+    closeBtn.dataset.dhuiRestored = "1";
+    closeBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      app.close();
+    });
+  }
+}
 
 function _escInner(str) {
   return String(str ?? "")

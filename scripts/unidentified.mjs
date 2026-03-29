@@ -1,19 +1,18 @@
 // ============================================================
 // dh-unidentified | unidentified.mjs
-// Core logic: mystify, identify, flag helpers
-//
-// ARCHITECTURE (v2 — non-destructive):
-//   The item document in the database is NEVER modified.
-//   Mystify only writes flags. All masking happens in the DOM
-//   at render time. If the module is disabled, items are intact.
+// Core logic: mystify, identify, flag read/write helpers
 // ============================================================
 
 const MODULE_ID = "dh-unidentified";
 
+// Item types that support the unidentified workflow
 export const SUPPORTED_TYPES = ["weapon", "armor", "loot", "consumable"];
 
-export const FLAG = {
-  IDENTIFIED: "identified",   // false = unidentified, true = identified, absent = never mystified
+const FLAG = {
+  IDENTIFIED: "identified",
+  REAL_NAME:  "realName",
+  REAL_IMG:   "realImg",
+  REAL_DESC:  "realDescription",
   MASK_NAME:  "maskedName",
   MASK_IMG:   "maskedImg",
   MASK_DESC:  "maskedDescription",
@@ -26,7 +25,8 @@ export function isSupported(item) {
 }
 
 export function isUnidentified(item) {
-  return item?.flags?.[MODULE_ID]?.[FLAG.IDENTIFIED] === false;
+  const f = item?.flags?.[MODULE_ID];
+  return f !== undefined && f[FLAG.IDENTIFIED] === false;
 }
 
 export function getFlags(item) {
@@ -34,8 +34,6 @@ export function getFlags(item) {
 }
 
 // ── Mystify ──────────────────────────────────────────────────
-// Only writes flags. The item's real name/img/description
-// in the database are left completely untouched.
 
 export async function openMystifyDialog(item) {
   if (!game.user.isGM) return;
@@ -44,9 +42,10 @@ export async function openMystifyDialog(item) {
     return;
   }
 
-  const existing          = getFlags(item);
+  const existing         = getFlags(item);
   const defaultMaskedName = existing[FLAG.MASK_NAME] ?? `Unidentified ${_capitalize(item.type)}`;
   const defaultMaskedDesc = existing[FLAG.MASK_DESC] ?? "The nature of this item is unknown.";
+  // Default icon = current item icon — GM just accepts if they want to keep same art
   const defaultMaskedImg  = existing[FLAG.MASK_IMG]  ?? item.img ?? "icons/svg/item-bag.svg";
 
   const content = `
@@ -63,7 +62,7 @@ export async function openMystifyDialog(item) {
       </div>
       <div class="dhui-field">
         <label>Masked Description (visible to player)</label>
-        <textarea name="maskedDesc" rows="4" placeholder="A mysterious item.">${_esc(defaultMaskedDesc)}</textarea>
+        <textarea name="maskedDesc" rows="4" placeholder="A mysterious item. Its nature is unknown.">${_esc(defaultMaskedDesc)}</textarea>
       </div>
     </div>
   `;
@@ -105,34 +104,48 @@ export async function openMystifyDialog(item) {
 }
 
 export async function applyMystify(item, { maskedName, maskedImg, maskedDesc }) {
-  // Write ONLY flags — the item document (name, img, description) is NOT changed
+  // Capture real description from system data
+  const realDesc = item.system?.description ?? item.system?.details?.description ?? "";
+
   await item.update({
+    name: maskedName,
+    img:  maskedImg,
+    "system.description": maskedDesc,
     [`flags.${MODULE_ID}.${FLAG.IDENTIFIED}`]: false,
+    [`flags.${MODULE_ID}.${FLAG.REAL_NAME}`]:  item.name,
+    [`flags.${MODULE_ID}.${FLAG.REAL_IMG}`]:   item.img,
+    [`flags.${MODULE_ID}.${FLAG.REAL_DESC}`]:  realDesc,
     [`flags.${MODULE_ID}.${FLAG.MASK_NAME}`]:  maskedName,
     [`flags.${MODULE_ID}.${FLAG.MASK_IMG}`]:   maskedImg,
     [`flags.${MODULE_ID}.${FLAG.MASK_DESC}`]:  maskedDesc,
   });
 
-  ui.notifications.info(`[DH Unidentified] "${item.name}" is now unidentified.`);
+  ui.notifications.info(`[DH Unidentified] "${maskedName}" is now unidentified.`);
 }
 
 // ── Identify ─────────────────────────────────────────────────
-// Sets identified: true — no data restoration needed because
-// the real data was never overwritten.
 
 export async function identifyItem(item) {
   if (!game.user.isGM) return;
 
-  if (!isUnidentified(item)) {
+  const flags = getFlags(item);
+  if (!flags || flags[FLAG.IDENTIFIED] !== false) {
     ui.notifications.warn("[DH Unidentified] This item is already identified.");
     return;
   }
 
+  const realName = flags[FLAG.REAL_NAME] ?? item.name;
+  const realImg  = flags[FLAG.REAL_IMG]  ?? item.img;
+  const realDesc = flags[FLAG.REAL_DESC] ?? "";
+
   await item.update({
+    name: realName,
+    img:  realImg,
+    "system.description": realDesc,
     [`flags.${MODULE_ID}.${FLAG.IDENTIFIED}`]: true,
   });
 
-  ui.notifications.info(`[DH Unidentified] "${item.name}" has been identified!`);
+  ui.notifications.info(`[DH Unidentified] "${realName}" has been identified!`);
 }
 
 // ── Internal ─────────────────────────────────────────────────
