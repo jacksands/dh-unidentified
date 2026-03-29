@@ -1,0 +1,23 @@
+{
+  "id": "dh-unidentified",
+  "title": "DH Unidentified Items",
+  "description": "Allows GMs to mark items as unidentified in the Foundryborne Daggerheart system. Players see a masked name, icon, and description. All inputs are locked. GMs can identify items via a banner button inside the sheet, or via the right-click context menu on the actor sheet inventory.",
+  "version": "1.1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "authors": [{ "name": "GM" }],
+  "esmodules": ["scripts/main.mjs"],
+  "styles": ["styles/module.css"],
+  "relationships": {
+    "requires": [
+      {
+        "id": "lib-wrapper",
+        "type": "module",
+        "compatibility": { "minimum": "1.12.0" }
+      }
+    ]
+  }
+}

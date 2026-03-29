@@ -1,0 +1,280 @@
+/* ============================================================
+   dh-unidentified | module.css
+   All selectors scoped to .dhui-* or #dhui-*.
+   No global selectors.
+   ============================================================ */
+
+/* ── GM Banner (teal / green-water, inside .window-content) ── */
+
+.dhui-gm-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 14px;
+  background: linear-gradient(90deg, #003a2aee, #002a1eee);
+  border-bottom: 2px solid #20c97c;
+  color: #90ffd8;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.dhui-gm-banner__icon {
+  font-size: 15px;
+  color: #20c97c;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dhui-gm-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dhui-gm-banner__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.dhui-gm-banner__row strong { color: #90ffd8; }
+
+.dhui-gm-banner__hint {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.dhui-gm-banner__label {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Masked name — muted */
+.dhui-gm-banner__names .dhui-masked {
+  color: #60c8a0;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Real name — bright, so GM can quickly spot it */
+.dhui-gm-banner__names .dhui-real {
+  color: #ffd580;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ── Controls-dropdown separator ── */
+
+.dhui-menu-sep {
+  height: 1px;
+  background: rgba(255,255,255,0.15);
+  margin: 4px 8px;
+  list-style: none;
+  pointer-events: none;
+}
+
+/* ── Shared button style ── */
+
+.dhui-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* Identify — green */
+.dhui-btn--identify {
+  background: linear-gradient(135deg, #1a5c2a, #145020);
+  color: #90ffd8;
+  border-color: #2a8c4a;
+}
+.dhui-btn--identify:hover {
+  background: linear-gradient(135deg, #20702f, #1a5c2a);
+  box-shadow: 0 0 7px rgba(144, 255, 216, 0.4);
+}
+
+/* Re-mystify — muted blue */
+.dhui-btn--remystify {
+  background: linear-gradient(135deg, #1a2a4a, #101a30);
+  color: #a0c0ff;
+  border-color: #2a4a8c;
+}
+.dhui-btn--remystify:hover {
+  background: linear-gradient(135deg, #20355a, #1a2a4a);
+  box-shadow: 0 0 7px rgba(160, 192, 255, 0.4);
+}
+
+/* Mystify — amber */
+.dhui-btn--mystify {
+  background: linear-gradient(135deg, #5c3a10, #3a2008);
+  color: #f5c87a;
+  border-color: #8c5a20;
+}
+.dhui-btn--mystify:hover {
+  background: linear-gradient(135deg, #704510, #5c3a10);
+  box-shadow: 0 0 7px rgba(245, 200, 122, 0.4);
+}
+
+/* ── Player badge ── */
+
+.dhui-player-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(90deg, #1a0a2aee, #120820ee);
+  border-bottom: 2px solid #7755cc;
+  color: #c0a0ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.dhui-player-badge i { font-size: 15px; }
+
+/* ── Lock overlay (inside .window-content only) ── */
+
+.dhui-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: transparent;
+  cursor: not-allowed;
+  pointer-events: all;
+}
+
+/* ── Unidentified inventory row — teal outline ── */
+
+li.dhui-unidentified-row {
+  outline: 1px solid #20c97c55;
+  border-radius: 4px;
+  background: rgba(0, 58, 42, 0.18) !important;
+}
+
+li.dhui-unidentified-row .item-name {
+  color: #80e8c0;
+  font-style: italic;
+}
+
+/* Lock icon after name */
+li.dhui-unidentified-row .item-name::after {
+  content: " \f023"; /* fa-lock unicode */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-style: normal;
+  font-size: 9px;
+  color: #20c97c;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+/* ── Context menu injected entries ── */
+
+.dhui-ctx-sep {
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  margin: 3px 6px;
+  pointer-events: none;
+  list-style: none;
+}
+
+/* ── Mystify Dialog ── */
+
+#dhui-mystify-dialog .dhui-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #9a8070;
+  line-height: 1.5;
+}
+
+#dhui-mystify-dialog .dhui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+#dhui-mystify-dialog .dhui-field label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #b09070;
+}
+
+#dhui-mystify-dialog .dhui-field input[type="text"],
+#dhui-mystify-dialog .dhui-field textarea {
+  padding: 7px 10px;
+  border-radius: 5px;
+  border: 1px solid #4a3a28;
+  background: #1a1410;
+  color: #f5e6d3;
+  font-size: 13px;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#dhui-mystify-dialog .dhui-field input[type="text"]:focus,
+#dhui-mystify-dialog .dhui-field textarea:focus {
+  outline: none;
+  border-color: #c97c20;
+}
+
+#dhui-mystify-dialog .dhui-field--img {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#dhui-mystify-dialog .dhui-field--img label { width: 100%; }
+#dhui-mystify-dialog .dhui-field--img input  { flex: 1; min-width: 0; }
+
+#dhui-mystify-dialog #dhui-pick-img {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-radius: 5px;
+  border: 1px solid #4a3a28;
+  background: #2a1a08;
+  color: #c9a876;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#dhui-mystify-dialog #dhui-pick-img:hover {
+  background: #3a2a10;
+  color: #f5c87a;
+}
+
+/* ── Sidebar: teal dot indicator for unidentified items (GM only) ── */
+
+.dhui-sidebar-dot {
+  font-size: 7px;
+  color: #20c97c;
+  margin-right: 5px;
+  vertical-align: middle;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
